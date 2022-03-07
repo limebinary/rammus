@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -66,7 +67,7 @@ Stream<OnNotificationReceivedInApp> get onNotificationReceivedInApp =>
     _onNotificationReceivedInAppController.stream;
 
 ///确保注册成功以后调用获取[deviceId]
-Future<String> get deviceId async {
+Future<String?> get deviceId async {
   return _channel.invokeMethod("deviceId");
 }
 
@@ -79,6 +80,13 @@ Future<CommonCallbackResult> get pushChannelStatus async {
     errorCode: result["errorCode"],
     errorMessage: result["errorMessage"],
   );
+}
+
+/// 注册设备
+/// 仅在 Android 设备生效，且在 Android 端若希望插件正常工作，必须执行一次本方法
+/// 分离插件初始化与注册的过程，例如实现在用户同意了隐私政策后再进行远端注册，防止影响应用上架。
+void register() {
+  if (Platform.isAndroid) _channel.invokeMethod("register");
 }
 
 //  static Future<String> get platformVersion async {
@@ -178,12 +186,12 @@ Future<CommonCallbackResult> unbindPhoneNumber() async {
 ///alias 别名（仅当target = 3时生效）
 ///callback 回调
 Future<CommonCallbackResult> bindTag(
-    {@required CloudPushServiceTarget target,
-    List<String> tags,
-    String alias}) async {
+    {@required CloudPushServiceTarget? target,
+    List<String>? tags,
+    String? alias}) async {
   var result = await _channel.invokeMethod("bindTag", {
-    "target": target.index + 1,
-    "tags": tags ?? List<String>(),
+    "target": target!.index + 1,
+    "tags": tags ?? <String>[],
     "alias": alias
   });
 
@@ -206,12 +214,12 @@ Future<CommonCallbackResult> bindTag(
 ///alias 别名（仅当target = 3时生效）
 ///callback 回调
 Future<CommonCallbackResult> unbindTag(
-    {@required CloudPushServiceTarget target,
-    List<String> tags,
-    String alias}) async {
+    {@required CloudPushServiceTarget? target,
+    List<String>? tags,
+    String? alias}) async {
   var result = await _channel.invokeMethod("unbindTag", {
-    "target": target.index + 1,
-    "tags": tags ?? List<String>(),
+    "target": target!.index + 1,
+    "tags": tags ?? <String>[],
     "alias": alias
   });
 
@@ -280,17 +288,15 @@ Future<CommonCallbackResult> listAliases() async {
       iosError: result["iosError"]);
 }
 
-class NotificationChannel{
-  const NotificationChannel(this.id,
-      this.name,
-      this.description,
-      {this.importance=AndroidNotificationImportance.DEFAULT});
+class NotificationChannel {
+  const NotificationChannel(this.id, this.name, this.description,
+      {this.importance = AndroidNotificationImportance.DEFAULT});
   final String id;
   final String name;
   final String description;
   final AndroidNotificationImportance importance;
 
-  Map<String, dynamic> toJson(){
+  Map<String, dynamic> toJson() {
     return {
       "id": id,
       "name": name,
@@ -306,7 +312,8 @@ class NotificationChannel{
 ///为了更好的用户体验，一些参数请不要用传[null]。
 ///[id]一定要和后台推送时候设置的通知通道一样，否则Android8.0以上无法完成通知推送。
 Future setupNotificationManager(List<NotificationChannel> channels) async {
-  return _channel.invokeMethod("setupNotificationManager", channels.map((e) => e.toJson()).toList());
+  return _channel.invokeMethod(
+      "setupNotificationManager", channels.map((e) => e.toJson()).toList());
 }
 
 ///这个方法仅针对iOS
@@ -319,6 +326,18 @@ Future configureNotificationPresentationOption(
     bool badge: true}) async {
   return _channel.invokeMethod("configureNotificationPresentationOption",
       {"none": none, "sound": sound, "alert": alert, "badge": badge});
+}
+
+Future badgeClean({int num: 0}) async {
+  return _channel.invokeMethod("badgeClean", {"num": num});
+}
+
+///这个方法近针对ios
+///清理图标上的角标
+Future applicationBadgeNumberClean({int num: 0}) async {
+   if (Platform.isIOS){
+     return  _channel.invokeMethod("applicationBadgeNumberClean", {"num": num});
+   }
 }
 
 Future<dynamic> _handler(MethodCall methodCall) {
